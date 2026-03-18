@@ -13,6 +13,7 @@ license-files = ["LICENSE"]
 authors = [
     { name = "Homer Quan" }
 ]
+urls = { Homepage = "https://github.com/homerquan/PDFTwin", Repository = "https://github.com/homerquan/PDFTwin", Issues = "https://github.com/homerquan/PDFTwin/issues" }
 keywords = ["pdf", "cli", "ocr", "document-processing", "pymupdf"]
 classifiers = [
     "Development Status :: 3 - Alpha",

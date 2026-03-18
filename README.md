@@ -127,26 +127,47 @@ If you plan to use Gemini-powered OCR or visual checks, set your API key:
 export GEMINI_API_KEY="your-google-gemini-key"
 ```
 
-## PyPI Publishing
+## Automatic PyPI Publishing
 
-The package is set up to build and publish as a PyPI package.
+This repository now includes GitHub Actions workflows for both CI and PyPI publishing:
 
-Build the distribution files:
+- `.github/workflows/ci.yml` runs tests and validates the package build on pushes and pull requests
+- `.github/workflows/publish.yml` publishes to PyPI with GitHub Trusted Publishing
+
+### Trusted Publisher Settings
+
+In PyPI, the trusted publisher should point to:
+
+- Owner: `homerquan`
+- Repository: `PDFTwin`
+- Workflow file: `.github/workflows/publish.yml`
+- Environment: `pypi`
+
+### Release Flow
+
+1. Update the version in `pyproject.toml` and `src/pdftwin/__init__.py`
+2. Commit your changes
+3. Create and push a version tag such as `v0.1.1`
+
+```bash
+git tag v0.1.1
+git push origin v0.1.1
+```
+
+That tag triggers the publish workflow, which:
+
+- verifies the tag matches the package version
+- runs the test suite
+- builds the wheel and source distribution
+- publishes to PyPI using GitHub OIDC, without a saved PyPI API token
+
+### Manual Build Fallback
+
+If you ever want to build locally before releasing:
 
 ```bash
 python3 -m build
-```
-
-Validate the generated package metadata:
-
-```bash
 python3 -m twine check dist/*
-```
-
-Publish to PyPI:
-
-```bash
-python3 -m twine upload dist/*
 ```
 
 ## Notes
