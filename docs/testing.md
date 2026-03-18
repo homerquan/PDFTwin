@@ -27,6 +27,6 @@ pytest
    - Feeds IR to `PdfRenderer`.
    - Opens the regenerated PDF to verify text placement and layout fidelity.
 
-4. **CLI Flow** (`test_cli_roundtrip`, `test_cli_roundtrip_default_output`, `test_cli_config_show`):
+4. **CLI Flow** (`test_cli_roundtrip`, `test_cli_roundtrip_default_output`, `test_cli_roundtrip_rejects_file_output_path`, `test_cli_config_show`):
    - Uses Typer's `CliRunner` to perform e2e tests simulating actual command-line invocations without invoking sub-processes directly.
-   - Confirms the default `pdftwin <input.pdf>` roundtrip flow, PDF/JSON artifact paths, and configuration options.
+   - Confirms the default `pdftwin <input.pdf>` roundtrip flow, output-directory handling for PDF/JSON artifacts, and configuration options.

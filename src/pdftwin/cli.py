@@ -28,13 +28,14 @@ class DefaultToRoundtripGroup(typer.core.TyperGroup):
 
 app = typer.Typer(
     cls=DefaultToRoundtripGroup,
-    help="PDFTwin: A developer-first tool to reconstruct and digitize PDFs.",
+    help="PDFTwin: Turn PDFs into editable JSON and replica PDFs.",
     no_args_is_help=True,
     epilog=(
-        "Default usage: pdftwin input.pdf -o /tmp/output.pdf\n"
-        "Roundtrip outputs /tmp/output.pdf and /tmp/output.json.\n"
+        "Default usage: pdftwin input.pdf -o /tmp\n"
+        "This creates /tmp/<input_stem>_twin.pdf and "
+        "/tmp/<input_stem>_twin.json.\n"
         "If -o is omitted, outputs default to ./<input_stem>_twin.pdf and "
-        "./<input_stem>_twin.json."
+        "./<input_stem>_twin.json in the current working directory."
     ),
 )
 config_app = typer.Typer(help="Manage configuration.")
@@ -52,18 +53,26 @@ def _build_document_ir(input_pdf: str) -> Document:
     return Document(pages=result["pages"], metadata=result["metadata"], traces=result["traces"])
 
 
-def _resolve_output_path(output: Optional[str], default_path: Path) -> Path:
-    output_path = Path(output).expanduser() if output else default_path
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    return output_path
+def _resolve_output_dir(output: Optional[str]) -> Path:
+    output_dir = Path(output).expanduser() if output else Path.cwd()
+    if output and output_dir.suffix:
+        typer.echo(
+            "Error: -o/--output expects a directory path, for example: pdftwin input.pdf -o /tmp",
+            err=True,
+        )
+        sys.exit(1)
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    return output_dir
 
 
-def _default_roundtrip_output(input_pdf: str) -> Path:
-    return Path.cwd() / f"{Path(input_pdf).stem}_twin.pdf"
-
-
-def _json_path_for_output(output_path: Path) -> Path:
-    return output_path.with_suffix(".json")
+def _roundtrip_output_paths(input_pdf: str, output_dir: Optional[str]) -> tuple[Path, Path]:
+    input_stem = f"{Path(input_pdf).stem}_twin"
+    resolved_output_dir = _resolve_output_dir(output_dir)
+    return (
+        resolved_output_dir / f"{input_stem}.pdf",
+        resolved_output_dir / f"{input_stem}.json",
+    )
 
 
 def _write_document_ir(doc_ir: Document, output_path: Path) -> None:
@@ -77,15 +86,14 @@ def _run_roundtrip(input_pdf: str, output: Optional[str] = None) -> None:
         sys.exit(1)
 
     doc_ir = _build_document_ir(input_pdf)
-    pdf_output_path = _resolve_output_path(output, _default_roundtrip_output(input_pdf))
-    json_output_path = _json_path_for_output(pdf_output_path)
+    pdf_output_path, json_output_path = _roundtrip_output_paths(input_pdf, output)
 
     _write_document_ir(doc_ir, json_output_path)
     PdfRenderer.render(doc_ir, str(pdf_output_path))
 
     typer.echo(f"PDF output: {pdf_output_path}")
     typer.echo(f"JSON output: {json_output_path}")
-    typer.echo(f"Successfully roundtripped {input_pdf}")
+    typer.echo(f"Successfully created editable outputs for {input_pdf}")
 
 
 @app.command()
@@ -152,10 +160,10 @@ def roundtrip(
         None,
         "-o",
         "--output",
-        help="Output PDF path. Defaults to ./<input_stem>_twin.pdf.",
+        help="Output directory. Defaults to the current working directory.",
     ),
 ):
-    """Extracts a PDF to IR and immediately renders it back to a new PDF."""
+    """Creates an editable JSON file and replica PDF from an input PDF."""
     _run_roundtrip(input_pdf, output)
 
 

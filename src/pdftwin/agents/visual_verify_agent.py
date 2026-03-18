@@ -1,5 +1,4 @@
 from typing import Any, Dict, List
-import base64
 from pydantic import BaseModel
 from .base import BaseAgent
 from ..llm.wrapper import LLMWrapper
@@ -8,10 +7,17 @@ from ..models import AgentTrace
 
 class VisualDiffFindings(BaseModel):
     is_visually_identical: bool
+    overall_similarity_score: float
     layout_similarity_score: float
     typography_similarity_score: float
     spacing_alignment_score: float
     image_placement_score: float
+    table_structure_score: float
+    text_corruption_detected: bool
+    text_overflow_detected: bool
+    table_issues: List[str]
+    text_issues: List[str]
+    image_issues: List[str]
     differences_found: List[str]
 
 
@@ -25,19 +31,18 @@ class VisualVerifyAgent(BaseAgent):
 
         prompt = (
             "You are an expert document quality assurance agent. "
-            "I have provided two images: the original PDF page, and the regenerated PDF page. "
-            "(Due to system limits, they are passed as a single combined image or you can evaluate the similarities if I pass the generated one with context of the original). "
-            "Please act as if you see both and grade how visually identical they are. "
-            "Be strict about layout, spacing, alignment, and fonts."
+            "You are given one combined image with the original PDF page on the LEFT and the regenerated PDF page on the RIGHT. "
+            "Evaluate whether the regenerated page is visually identical to the original. "
+            "Be extremely strict about text correctness, corrupted characters, missing or extra text, line wrapping, table alignment, table borders, row and column structure, image placement, spacing, and typography. "
+            "If there are no visible problems, return empty issue lists. "
+            "If the page contains a table, pay special attention to cell alignment, overlaps, and broken line wraps."
         )
-        # Note: Since LLMWrapper currently takes one image_base64, we will merge them horizontally or just pass the diff image.
-        # For simplicity in this demo, assume we combined them horizontally.
 
         try:
             result = LLMWrapper.call_structured(
                 prompt=prompt,
                 response_model=VisualDiffFindings,
-                image_base64=recreated_image_base64,  # In a real system, you'd stitch original + recreated into one base64
+                image_base64=recreated_image_base64,
             )
             traces.append(self.record_trace("success", "Visual verification completed"))
             return {"result": result.model_dump(), "traces": traces}

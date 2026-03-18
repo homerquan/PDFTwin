@@ -48,6 +48,7 @@ class TextAgent(BaseAgent):
         try:
             page_dict = page.get_text("dict")
             ocr_calls = 0
+            page_text_parts = []
             for block in page_dict.get("blocks", []):
                 if block.get("type") != 0:
                     continue
@@ -161,6 +162,7 @@ class TextAgent(BaseAgent):
                             )
                         ]
 
+                page_text_parts.append(block_text)
                 text_blocks.append(
                     TextBlock(
                         lines=lines,
@@ -174,4 +176,11 @@ class TextAgent(BaseAgent):
         except Exception as e:
             traces.append(self.record_trace("error", str(e)))
 
-        return {"text_blocks": text_blocks, "traces": traces}
+        page_text = " ".join(part for part in page_text_parts if part.strip())
+        page_is_garbled = _is_garbled(page_text) if page_text else False
+
+        return {
+            "text_blocks": text_blocks,
+            "traces": traces,
+            "page_is_garbled": page_is_garbled,
+        }

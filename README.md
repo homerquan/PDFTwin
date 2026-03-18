@@ -1,108 +1,155 @@
 # PDFTwin
 
-PDFTwin is a developer-first CLI tool designed to reconstruct any PDF into a structured, editable Intermediate Representation (IR) and then seamlessly regenerate a visually matching PDF that is as close to pixel-perfect as possible.
+PDFTwin turns a PDF into files that are easier to work with:
 
-**Why not just OCR?**
-OCR gives you text. PDFTwin gives you a digital-twin document with editable structure—including text blocks, reading order, vector graphics, image placements, colors, layout relations, and an agent trace. This isn't just extraction; it's a true round-trip parser.
+- An editable JSON representation of the document
+- A replica PDF that stays visually close to the original
 
-**Key Architecture**
-PDFTwin uses a modular **Multi-Agent** approach. Each agent focuses on a particular slice of the problem (e.g., text, layouts, images, vectors, fonts), and an Orchestrator manages their lifecycle.
+This is useful when you want more than plain OCR text. PDFTwin keeps layout, text blocks, images, vectors, fonts, and page geometry so you can inspect, transform, compare, or regenerate the document.
 
-## Features
-- Complete multi-agent architecture
-- Configurable extraction (PyMuPDF backbone)
-- JSON IR model that perfectly records PDF layout geometry
-- Built-in font-matching agent to substitute unavailable fonts
-- Generative AI integrations (Gemini via LiteLLM) for visual verification and difficult OCR.
-- Detailed visual comparison metrics and structured reporting.
+## What You Get
 
-## Installation
+Given a file like `invoice.pdf`, PDFTwin can create:
+
+- `invoice_twin.json`
+- `invoice_twin.pdf`
+
+The JSON is the editable version. The PDF is the visual replica.
+
+## Quick Start
+
+After the package is published to PyPI:
 
 ```bash
-# Clone the repository
-git clone https://github.com/yourname/pdftwin.git
-cd pdftwin
-
-# Install with development dependencies
-pip install -e .[dev]
-
-# Set up your environment for Gemini (LiteLLM requires this)
-export GEMINI_API_KEY="your-google-gemini-key"
+pip install pdftwin
 ```
 
-### Build For PyPI
+From the source repo today:
+
+```bash
+# clone this repository first
+cd PDFTwin
+python3 -m pip install -e .
+```
+
+If you want development tools too:
+
 ```bash
 python3 -m pip install -e .[dev]
-python3 -m build
-python3 -m twine check dist/*
 ```
 
-To publish after building:
+## Create Editable Outputs From a PDF
+
 ```bash
-python3 -m twine upload dist/*
+pdftwin input.pdf -o /tmp
 ```
 
-### Optional Extras
-For advanced visual diffing capabilities, ensure you have system-level libraries suitable for Pillow (like libjpeg, zlib).
+This writes:
 
-## Usage
+- `/tmp/input_twin.pdf`
+- `/tmp/input_twin.json`
 
-### Extract PDF to Intermediate Representation (IR)
+If you omit `-o`, PDFTwin writes both files to the current folder:
+
+- `./input_twin.pdf`
+- `./input_twin.json`
+
+`-o` is an output folder, not a filename.
+
+## Common Workflows
+
+### 1. Create both editable JSON and a replica PDF
+
 ```bash
-pdftwin extract input.pdf -o twin.json
+pdftwin contract.pdf -o ./outputs
 ```
 
-### Render PDF from IR
+This creates:
+
+- `./outputs/contract_twin.json`
+- `./outputs/contract_twin.pdf`
+
+### 2. Create only the editable JSON
+
 ```bash
-pdftwin render twin.json -o recreated.pdf
+pdftwin extract contract.pdf -o contract_twin.json
 ```
 
-### Default Roundtrip
+### 3. Create a replica PDF from JSON
+
 ```bash
-pdftwin input.pdf -o /tmp/output.pdf
+pdftwin render contract_twin.json -o recreated.pdf
 ```
 
-This roundtrip writes:
-- PDF: `/tmp/output.pdf`
-- JSON IR: `/tmp/output.json`
+### 4. Compare the original PDF with the replica PDF
 
-If you omit `-o`, PDFTwin writes:
-- PDF: `./<input_stem>_twin.pdf`
-- JSON IR: `./<input_stem>_twin.json`
-
-### Inspect File
 ```bash
-pdftwin inspect input.pdf
+pdftwin diff contract.pdf recreated.pdf --report diff_report.md --images diff_artifacts/
 ```
 
-### Agent Traces
+### 5. Inspect a PDF before processing
+
 ```bash
-pdftwin agents input.pdf
+pdftwin inspect contract.pdf
 ```
 
-### Diff original vs recreated
-```bash
-pdftwin diff input.pdf output.pdf --report diff_report.md --images diff_artifacts/
-```
+## Why Use PDFTwin Instead Of Basic OCR
 
-### Configuration
+Basic OCR usually gives you text only.
+
+PDFTwin is designed to preserve document structure such as:
+
+- Page sizes and layout
+- Text spans and positions
+- Images and their placements
+- Vector lines and shapes
+- Font information and fallback matching
+
+That makes it better suited for rebuilding documents, document analysis, migrations, validation, and automated processing pipelines.
+
+## How It Works
+
+PDFTwin extracts the PDF into a structured JSON model using PyMuPDF and a set of specialized agents. That JSON can then be used to create a replica PDF, inspect document structure, or compare output quality against the original.
+
+For harder documents, the tool can optionally use LLM-assisted OCR and visual verification.
+
+## Configuration
+
+Show the current config:
+
 ```bash
 pdftwin config show
 ```
 
-## Agent Roles
-1. **Layout Agent**: Reconstructs reading order and geometric relationships.
-2. **Text Agent**: Pulls out text, spans, fonts, weights, sizes.
-3. **Image Agent**: Detects crops, rasters, placements.
-4. **Vector Agent**: Paths, lines, draws.
-5. **Font Agent**: Fallbacks and similarity.
-6. **OCR / Vision Agent**: (LLM) Acts when standard extraction fails.
-7. **Visual Verification Agent**: (LLM) "Does this page look the same?"
+If you plan to use Gemini-powered OCR or visual checks, set your API key:
 
-## Evaluation Stack
-We evaluate PyMuPDF, pypdf, pdfplumber, etc. PyMuPDF was chosen for PDFTwin because it intrinsically returns deep layout geometries natively required for absolute coordinates reconstruction `get_text("dict")` and `get_drawings()`.
+```bash
+export GEMINI_API_KEY="your-google-gemini-key"
+```
 
-## Roadmap
-- Deeper font metrics analysis via FreeType.
-- Enhanced table detection via local heuristics.
-- Improved non-linear reading order extraction.
+## PyPI Publishing
+
+The package is set up to build and publish as a PyPI package.
+
+Build the distribution files:
+
+```bash
+python3 -m build
+```
+
+Validate the generated package metadata:
+
+```bash
+python3 -m twine check dist/*
+```
+
+Publish to PyPI:
+
+```bash
+python3 -m twine upload dist/*
+```
+
+## Notes
+
+- For advanced image diffing, your system should have common Pillow dependencies available, such as `libjpeg` and `zlib`.
+- Some scanned PDFs may contain a full-page image plus a text layer. PDFTwin preserves searchability while avoiding duplicated visible text in the replica PDF.

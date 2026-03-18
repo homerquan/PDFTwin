@@ -5,6 +5,7 @@ import numpy as np
 from PIL import Image, ImageChops, ImageStat
 from typing import Dict, Any, Tuple, Optional
 from ..agents.visual_verify_agent import VisualVerifyAgent
+from ..config import config
 
 
 def page_to_image(page: fitz.Page, dpi: int = 150) -> Image.Image:
@@ -30,7 +31,10 @@ def create_diff_image(img1: Image.Image, img2: Image.Image) -> Tuple[Image.Image
 
 
 def compare_pdfs(
-    original_pdf: str, recreated_pdf: str, out_dir: Optional[str] = None
+    original_pdf: str,
+    recreated_pdf: str,
+    out_dir: Optional[str] = None,
+    run_vl_on_all_pages: bool = False,
 ) -> Dict[str, Any]:
     doc1 = fitz.open(original_pdf)
     doc2 = fitz.open(recreated_pdf)
@@ -69,7 +73,8 @@ def compare_pdfs(
         combined.save(buffer, format="JPEG")
         b64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
 
-        if i == 0:  # Only run VL check on first page to speed up evaluation
+        should_run_vl = config.use_vl_review and (run_vl_on_all_pages or i == 0)
+        if should_run_vl:
             try:
                 vl_res = agent.run(context=b64)
                 vl_findings = vl_res.get("result", {})
@@ -86,4 +91,11 @@ def compare_pdfs(
             }
         )
 
-    return {"pages": page_reports}
+    max_diff = max((page["deterministic_diff_percentage"] for page in page_reports), default=0.0)
+    avg_diff = (
+        sum(page["deterministic_diff_percentage"] for page in page_reports) / len(page_reports)
+        if page_reports
+        else 0.0
+    )
+
+    return {"pages": page_reports, "summary": {"max_diff_percentage": max_diff, "avg_diff_percentage": avg_diff}}

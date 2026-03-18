@@ -5,10 +5,11 @@ build-backend = "hatchling.build"
 [project]
 name = "pdftwin"
 version = "0.1.0"
-description = "A developer-first tool to reconstruct any PDF into an editable IR and regenerate a visual twin."
+description = "Turn PDFs into editable JSON and visually matching replica PDFs."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
+license-files = ["LICENSE"]
 authors = [
     { name = "Homer Quan" }
 ]

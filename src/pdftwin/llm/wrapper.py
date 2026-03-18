@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+import re
 from typing import Any, Dict, Optional, Type, TypeVar
 from pydantic import BaseModel
 
@@ -13,6 +14,51 @@ T = TypeVar("T", bound=BaseModel)
 
 
 class LLMWrapper:
+    @staticmethod
+    def _looks_like_schema(candidate: Any) -> bool:
+        return isinstance(candidate, dict) and "properties" in candidate and "type" in candidate
+
+    @staticmethod
+    def _unwrap_schema_like_candidate(candidate: Any, response_model: Type[T]) -> Any:
+        if not isinstance(candidate, dict):
+            return candidate
+
+        properties = candidate.get("properties")
+        model_fields = set(response_model.model_fields.keys())
+        if isinstance(properties, dict) and model_fields.issubset(set(properties.keys())):
+            return properties
+
+        return candidate
+
+    @staticmethod
+    def _extract_json_candidates(content: str) -> list[Any]:
+        candidates: list[Any] = []
+
+        for match in re.finditer(r"```(?:json)?\s*(.*?)\s*```", content, re.DOTALL):
+            block = match.group(1).strip()
+            if block:
+                candidates.append(block)
+
+        stripped = content.strip()
+        if stripped:
+            candidates.append(stripped)
+
+        decoder = json.JSONDecoder()
+        idx = 0
+        while idx < len(content):
+            if content[idx] not in "[{":
+                idx += 1
+                continue
+
+            try:
+                obj, end = decoder.raw_decode(content[idx:])
+                candidates.append(obj)
+                idx += max(end, 1)
+            except json.JSONDecodeError:
+                idx += 1
+
+        return candidates
+
     @staticmethod
     def call_structured(
         prompt: str,
@@ -61,20 +107,26 @@ class LLMWrapper:
             )
 
             content = response.choices[0].message.content.strip()
-            # Clean up markdown code blocks if any
-            import re
+            validation_errors = []
+            for candidate in reversed(LLMWrapper._extract_json_candidates(content)):
+                try:
+                    if isinstance(candidate, str):
+                        parsed = json.loads(candidate)
+                    else:
+                        parsed = candidate
 
-            match = re.search(r"```(?:json)?\s*(\{.*\}|\[.*\])\s*```", content, re.DOTALL)
-            if match:
-                content = match.group(1)
-            else:
-                # If no code block, just try to find the first { and last }
-                start = content.find("{")
-                end = content.rfind("}")
-                if start != -1 and end != -1:
-                    content = content[start : end + 1]
+                    parsed = LLMWrapper._unwrap_schema_like_candidate(parsed, response_model)
+                    if LLMWrapper._looks_like_schema(parsed):
+                        continue
 
-            return response_model.model_validate_json(content)
+                    return response_model.model_validate(parsed)
+                except Exception as e:
+                    validation_errors.append(str(e))
+
+            raise ValueError(
+                "Unable to parse structured LLM response. "
+                f"Validation attempts: {validation_errors[-3:]}. Raw response excerpt: {content[:500]}"
+            )
 
         except Exception as e:
             logger.error(f"LLM call failed: {e}")

@@ -2,6 +2,7 @@ import pytest
 import os
 import io
 import base64
+from types import SimpleNamespace
 import fitz
 from PIL import Image
 from src.pdftwin.models import Document, Page, TextBlock, TextLine, TextSpan, BoundingBox, FontSpec
@@ -9,7 +10,9 @@ from src.pdftwin.config import config
 from src.pdftwin.agents.orchestrator import OrchestratorAgent
 from src.pdftwin.renderers.pdf_renderer import PdfRenderer
 from src.pdftwin.cli import app
+from src.pdftwin.llm.wrapper import LLMWrapper
 from typer.testing import CliRunner
+from pydantic import BaseModel
 
 runner = CliRunner()
 
@@ -41,6 +44,27 @@ def test_models_serialization():
     assert span2.text == "Hello"
 
 
+def test_llm_wrapper_unwraps_schema_shaped_response(monkeypatch):
+    class SampleModel(BaseModel):
+        is_visually_identical: bool
+        differences_found: list[str]
+
+    monkeypatch.setattr(config, "use_llm", True)
+
+    response_text = """```json
+{"properties": {"is_visually_identical": true, "differences_found": []}, "type": "object"}
+```"""
+
+    fake_response = SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content=response_text))]
+    )
+    monkeypatch.setattr("src.pdftwin.llm.wrapper.litellm.completion", lambda **kwargs: fake_response)
+
+    result = LLMWrapper.call_structured(prompt="test", response_model=SampleModel)
+    assert result.is_visually_identical is True
+    assert result.differences_found == []
+
+
 def test_extraction_orchestrator(synthetic_pdf):
     doc = fitz.open(synthetic_pdf)
     agent = OrchestratorAgent()
@@ -56,6 +80,22 @@ def test_extraction_orchestrator(synthetic_pdf):
 
     text = "".join([span.text for line in page_ir.text_blocks[0].lines for span in line.spans])
     assert "Hello PDFTwin!" in text
+
+
+def test_extraction_uses_raster_fallback_for_garbled_sample_table(monkeypatch):
+    monkeypatch.setattr(config, "use_llm", False)
+    doc = fitz.open("tests/sample_pdfs/sample-table.pdf")
+    agent = OrchestratorAgent()
+    result = agent.run(doc)
+    doc.close()
+
+    first_page = result["pages"][0]
+    assert len(first_page.images) == 1
+    assert first_page.images[0].bbox.x0 == 0.0
+    assert first_page.images[0].bbox.y0 == 0.0
+    assert first_page.images[0].bbox.x1 == first_page.width
+    assert first_page.images[0].bbox.y1 == first_page.height
+    assert first_page.text_blocks
 
 
 def test_render_roundtrip(synthetic_pdf, tmp_path):
@@ -135,13 +175,13 @@ def test_render_full_page_image_keeps_text_searchable_but_invisible(tmp_path):
 
 
 def test_cli_roundtrip(synthetic_pdf, tmp_path):
-    out_pdf = str(tmp_path / "out.pdf")
-    result = runner.invoke(app, [synthetic_pdf, "--output", out_pdf])
+    output_dir = tmp_path / "artifacts"
+    result = runner.invoke(app, [synthetic_pdf, "--output", str(output_dir)])
     assert result.exit_code == 0
-    assert os.path.exists(out_pdf)
-    assert os.path.exists(tmp_path / "out.json")
-    assert f"PDF output: {out_pdf}" in result.stdout
-    assert f"JSON output: {tmp_path / 'out.json'}" in result.stdout
+    assert os.path.exists(output_dir / "test_twin.pdf")
+    assert os.path.exists(output_dir / "test_twin.json")
+    assert f"PDF output: {output_dir / 'test_twin.pdf'}" in result.stdout
+    assert f"JSON output: {output_dir / 'test_twin.json'}" in result.stdout
 
 
 def test_cli_roundtrip_default_output(synthetic_pdf, tmp_path, monkeypatch):
@@ -153,6 +193,12 @@ def test_cli_roundtrip_default_output(synthetic_pdf, tmp_path, monkeypatch):
     assert os.path.exists(tmp_path / "test_twin.json")
     assert f"PDF output: {tmp_path / 'test_twin.pdf'}" in result.stdout
     assert f"JSON output: {tmp_path / 'test_twin.json'}" in result.stdout
+
+
+def test_cli_roundtrip_rejects_file_output_path(synthetic_pdf, tmp_path):
+    result = runner.invoke(app, [synthetic_pdf, "--output", str(tmp_path / "out.pdf")])
+    assert result.exit_code == 1
+    assert "expects a directory path" in result.stdout
 
 
 def test_cli_config_show():
