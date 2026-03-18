@@ -1,0 +1,39 @@
+.DS_Store
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Coverage
+.coverage
+.coverage.*
+htmlcov/
+
+# Packaging
+build/
+dist/
+*.egg-info/
+pip-wheel-metadata/
+
+# Local environment files
+.env
+.env.*
+
+# Local generated artifacts
+*_twin.pdf
+*_twin.json
+*-diff/
+*-diff.md
+/my-patent-recreated.pdf
+/my-patent-report.md
