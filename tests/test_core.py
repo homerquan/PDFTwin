@@ -5,7 +5,16 @@ import base64
 from types import SimpleNamespace
 import fitz
 from PIL import Image
-from src.pdftwin.models import Document, Page, TextBlock, TextLine, TextSpan, BoundingBox, FontSpec
+from src.pdftwin.models import (
+    Document,
+    Page,
+    TextBlock,
+    TextLine,
+    TextSpan,
+    BoundingBox,
+    FontSpec,
+    Provenance,
+)
 from src.pdftwin.config import config
 from src.pdftwin.agents.orchestrator import OrchestratorAgent
 from src.pdftwin.renderers.pdf_renderer import PdfRenderer
@@ -171,6 +180,124 @@ def test_render_full_page_image_keeps_text_searchable_but_invisible(tmp_path):
 
     pix = page.get_pixmap(alpha=False)
     assert set(pix.samples) == {255}
+    doc.close()
+
+
+def test_render_full_page_image_shows_edited_text(tmp_path):
+    image = Image.new("RGB", (220, 120), "white")
+    image_bytes = io.BytesIO()
+    image.save(image_bytes, format="PNG")
+
+    doc_ir = Document(
+        pages=[
+            Page(
+                page_number=1,
+                width=220,
+                height=120,
+                text_blocks=[
+                    TextBlock(
+                        lines=[
+                            TextLine(
+                                spans=[
+                                    TextSpan(
+                                        text="Hello HOMER",
+                                        original_text="Hello",
+                                        bbox=BoundingBox(x0=20, y0=20, x1=70, y1=40),
+                                        origin=(20, 40),
+                                        font=FontSpec(name="Helvetica", size=18.0),
+                                    )
+                                ],
+                                bbox=BoundingBox(x0=20, y0=20, x1=70, y1=40),
+                            )
+                        ],
+                        bbox=BoundingBox(x0=20, y0=20, x1=70, y1=40),
+                    )
+                ],
+                images=[
+                    {
+                        "bbox": BoundingBox(x0=0, y0=0, x1=220, y1=120),
+                        "width": 220,
+                        "height": 120,
+                        "image_base64": base64.b64encode(image_bytes.getvalue()).decode("utf-8"),
+                        "provenance": Provenance(
+                            agent_id="OrchestratorAgent", method="page_raster_fallback"
+                        ),
+                    }
+                ],
+                vectors=[],
+                tables=[],
+            )
+        ]
+    )
+
+    output_pdf = str(tmp_path / "edited-visible.pdf")
+    PdfRenderer.render(doc_ir, output_pdf)
+
+    doc = fitz.open(output_pdf)
+    page = doc[0]
+    assert "Hello HOMER" in page.get_text()
+    pix = page.get_pixmap(alpha=False)
+    assert set(pix.samples) != {255}
+    doc.close()
+
+
+def test_render_full_page_image_shows_ocr_text_for_legacy_json(tmp_path):
+    image = Image.new("RGB", (220, 120), "white")
+    image_bytes = io.BytesIO()
+    image.save(image_bytes, format="PNG")
+
+    doc_ir = Document(
+        pages=[
+            Page(
+                page_number=1,
+                width=220,
+                height=120,
+                text_blocks=[
+                    TextBlock(
+                        lines=[
+                            TextLine(
+                                spans=[
+                                    TextSpan(
+                                        text="Legacy HOMER text",
+                                        bbox=BoundingBox(x0=20, y0=20, x1=120, y1=40),
+                                        origin=(20, 40),
+                                        font=FontSpec(name="Helvetica", size=18.0),
+                                        provenance=Provenance(
+                                            agent_id="OcrAgent", method="gemini-vision"
+                                        ),
+                                    )
+                                ],
+                                bbox=BoundingBox(x0=20, y0=20, x1=120, y1=40),
+                            )
+                        ],
+                        bbox=BoundingBox(x0=20, y0=20, x1=120, y1=40),
+                    )
+                ],
+                images=[
+                    {
+                        "bbox": BoundingBox(x0=0, y0=0, x1=220, y1=120),
+                        "width": 220,
+                        "height": 120,
+                        "image_base64": base64.b64encode(image_bytes.getvalue()).decode("utf-8"),
+                        "provenance": Provenance(
+                            agent_id="OrchestratorAgent", method="page_raster_fallback"
+                        ),
+                    }
+                ],
+                vectors=[],
+                tables=[],
+            )
+        ]
+    )
+
+    output_pdf = str(tmp_path / "legacy-visible.pdf")
+    PdfRenderer.render(doc_ir, output_pdf)
+
+    doc = fitz.open(output_pdf)
+    page = doc[0]
+    assert "Legacy HOMER text" in page.get_text()
+    pix = page.get_pixmap(alpha=False)
+    assert set(pix.samples) != {255}
     doc.close()
 
 

@@ -85,6 +85,7 @@ class TextAgent(BaseAgent):
 
                         text_span = TextSpan(
                             text=text,
+                            original_text=text,
                             bbox=BoundingBox(
                                 x0=s_bbox[0], y0=s_bbox[1], x1=s_bbox[2], y1=s_bbox[3]
                             ),
@@ -142,6 +143,7 @@ class TextAgent(BaseAgent):
                                 spans=[
                                     TextSpan(
                                         text=ocr_result.text,
+                                        original_text=ocr_result.text,
                                         bbox=BoundingBox(
                                             x0=b_bbox[0], y0=b_bbox[1], x1=b_bbox[2], y1=b_bbox[3]
                                         ),

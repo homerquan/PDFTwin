@@ -52,6 +52,7 @@ class FontSpec(BaseModel):
 
 class TextSpan(BaseModel):
     text: str
+    original_text: Optional[str] = None
     bbox: BoundingBox
     origin: Optional[Tuple[float, float]] = None
     font: FontSpec

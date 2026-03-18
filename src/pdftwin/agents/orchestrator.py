@@ -23,7 +23,7 @@ from ..models import (
 class OrchestratorAgent(BaseAgent):
     """Coordinates the document reconstruction process."""
 
-    RASTER_FALLBACK_DPI = 150
+    RASTER_FALLBACK_DPI = 300
 
     def __init__(self):
         self.text_agent = TextAgent()

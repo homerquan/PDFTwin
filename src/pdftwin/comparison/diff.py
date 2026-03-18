@@ -35,6 +35,7 @@ def compare_pdfs(
     recreated_pdf: str,
     out_dir: Optional[str] = None,
     run_vl_on_all_pages: bool = False,
+    dpi: int = 150,
 ) -> Dict[str, Any]:
     doc1 = fitz.open(original_pdf)
     doc2 = fitz.open(recreated_pdf)
@@ -50,8 +51,8 @@ def compare_pdfs(
     agent = VisualVerifyAgent()
 
     for i in range(len(doc1)):
-        img1 = page_to_image(doc1[i])
-        img2 = page_to_image(doc2[i])
+        img1 = page_to_image(doc1[i], dpi=dpi)
+        img2 = page_to_image(doc2[i], dpi=dpi)
 
         diff_img, diff_percent = create_diff_image(img1, img2)
 
@@ -98,4 +99,11 @@ def compare_pdfs(
         else 0.0
     )
 
-    return {"pages": page_reports, "summary": {"max_diff_percentage": max_diff, "avg_diff_percentage": avg_diff}}
+    return {
+        "pages": page_reports,
+        "summary": {
+            "evaluation_dpi": dpi,
+            "max_diff_percentage": max_diff,
+            "avg_diff_percentage": avg_diff,
+        },
+    }

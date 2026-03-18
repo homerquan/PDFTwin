@@ -84,6 +84,7 @@ def run_iteration(input_pdf: Path, output_root: Path, iteration: int) -> Dict[st
         str(pdf_out),
         out_dir=str(iteration_dir / "diff"),
         run_vl_on_all_pages=True,
+        dpi=300,
     )
 
     report = {
