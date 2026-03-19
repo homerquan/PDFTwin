@@ -325,7 +325,17 @@ def test_cli_roundtrip_default_output(synthetic_pdf, tmp_path, monkeypatch):
 def test_cli_roundtrip_rejects_file_output_path(synthetic_pdf, tmp_path):
     result = runner.invoke(app, [synthetic_pdf, "--output", str(tmp_path / "out.pdf")])
     assert result.exit_code == 1
-    assert "expects a directory path" in result.stdout
+
+    captured_output = result.stdout
+    if not captured_output:
+        captured_output = getattr(result, "output", "")
+    if not captured_output:
+        try:
+            captured_output = result.stderr
+        except ValueError:
+            captured_output = ""
+
+    assert "expects a directory path" in captured_output
 
 
 def test_cli_config_show():
