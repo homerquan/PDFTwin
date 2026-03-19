@@ -20,6 +20,14 @@ from src.pdftwin.agents.orchestrator import OrchestratorAgent
 from src.pdftwin.renderers.pdf_renderer import PdfRenderer
 from src.pdftwin.cli import app
 from src.pdftwin.llm.wrapper import LLMWrapper
+from src.pdftwin.sdk import (
+    diff_pdfs as sdk_diff_pdfs,
+    extract_pdf as sdk_extract_pdf,
+    load_document as sdk_load_document,
+    render_json as sdk_render_json,
+    replicate_pdf as sdk_replicate_pdf,
+    save_document as sdk_save_document,
+)
 from typer.testing import CliRunner
 from pydantic import BaseModel
 
@@ -125,6 +133,45 @@ def test_render_roundtrip(synthetic_pdf, tmp_path):
     text2 = page2.get_text()
     assert "Hello PDFTwin!" in text2
     doc2.close()
+
+
+def test_sdk_extract_and_save_document(synthetic_pdf, tmp_path):
+    document = sdk_extract_pdf(synthetic_pdf, use_llm=False)
+    output_json = tmp_path / "sdk-document.json"
+
+    saved_path = sdk_save_document(document, output_json)
+
+    assert saved_path == output_json.resolve()
+    assert output_json.exists()
+
+    loaded_document = sdk_load_document(output_json)
+    first_span_text = loaded_document.pages[0].text_blocks[0].lines[0].spans[0].text
+    assert "Hello PDFTwin!" in first_span_text
+
+
+def test_sdk_replicate_pdf_creates_pdf_and_json(synthetic_pdf, tmp_path):
+    result = sdk_replicate_pdf(synthetic_pdf, tmp_path, use_llm=False)
+
+    assert result.source_pdf.name == "test.pdf"
+    assert result.output_pdf == (tmp_path / "test_twin.pdf").resolve()
+    assert result.output_json == (tmp_path / "test_twin.json").resolve()
+    assert result.output_pdf.exists()
+    assert result.output_json.exists()
+    assert result.document.pages
+
+
+def test_sdk_render_json_and_diff(synthetic_pdf, tmp_path):
+    replicated = sdk_replicate_pdf(synthetic_pdf, tmp_path, use_llm=False)
+    rendered_pdf = tmp_path / "sdk-rendered.pdf"
+
+    render_result = sdk_render_json(replicated.output_json, rendered_pdf)
+    diff_result = sdk_diff_pdfs(synthetic_pdf, render_result.output_pdf, dpi=150)
+
+    assert render_result.output_pdf == rendered_pdf.resolve()
+    assert render_result.output_pdf.exists()
+    assert diff_result.summary["evaluation_dpi"] == 150
+    assert diff_result.pages
+    assert diff_result.original_pdf.name == "test.pdf"
 
 
 def test_render_full_page_image_keeps_text_searchable_but_invisible(tmp_path):

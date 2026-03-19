@@ -38,6 +38,8 @@ If you want development tools too:
 python3 -m pip install -e .[dev]
 ```
 
+If you want to call PDFTwin from Python code directly, see `SDK.md`.
+
 ## Create Editable Outputs From a PDF
 
 ```bash
